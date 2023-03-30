@@ -189,3 +189,51 @@ where site_id like 'BDG%' and jln.rtt_descri = 'Primary Route';
 ```
 
 ### ST_Crosses(A, B)
+Mostly used to test linestrings, which can be said to cross when their interiors have interactions. 
+
+When linestrings cross polygon boundaries, the crosses condition is also true.
+
+#### Check Which `jalan_raya` crosses with kecamatan `SIANTAR BARAT` 
+```sql
+select jln.gid, bk.kecamatan, ST_LENGTH(jln.geom::geography) as panjang_jalan, bk.geom, jln.geom
+from jalan_raya jln, batas_kecamatan bk 
+where ST_Crosses(jln.geom, bk.geom) and bk.kecamatan = 'SIANTAR BARAT';
+```
+
+## Clustering
+### ST_VoronoiPolygons(A)
+ [A Voronoi diagram](https://en.wikipedia.org/wiki/Voronoi_diagram)  is a partitioning of a plane into regions based on distance to a set of points. Each region represents the area of the plane that is closest to a particular point.
+
+```sql
+select (ST_DUMP(ST_VoronoiPolygons(ST_Collect(geom)))).geom 
+from site_id_national site
+where site_id like 'JKT%';
+```
+
+### ST_ClusterKMeans(A)
+ [K-means clustering](https://en.wikipedia.org/wiki/K-means_clustering)  is an algorithm that divides a set of points into a specified number of clusters based on the mean distance of points from the centroid (mean) of each cluster.
+The ST_ClusterKMeans function in PostGIS takes a single parameter: the number of clusters to create
+
+```sql
+SELECT kmean, count(*), ST_SetSRID(ST_Extent(geom), 4326) as bbox 
+FROM
+(
+    SELECT ST_ClusterKMeans(geom, 20) OVER() AS kmean, ST_Centroid(geom) as geom
+    FROM site_id_national 
+) tsub
+GROUP BY kmean;
+```
+
+### ST_ClusterDBScan
+ [DBSCAN](https://en.wikipedia.org/wiki/DBSCAN)  (Density-Based Spatial Clustering of Applications with Noise) is an algorithm that clusters points based on density. Points in a high-density region are considered to be part of the same cluster, while points in a low-density region are considered to be noise (i.e., not part of any cluster).
+The ST_ClusterDBSCAN function in PostGIS takes two parameters: eps and minpoints. eps is the maximum distance that points in a cluster can be from each other, and minpoints is the minimum number of points required to form a cluster.
+
+```sql
+SELECT cluster_id, count(*), ST_SetSRID(ST_Extent(geom), 4326) as bbox
+from
+(
+SELECT  *, ST_ClusterDBSCAN(geom, eps := 0.1, minpoints := 100) over () AS cluster_id
+FROM site_id_national sin2 
+) bb
+group by cluster_id;
+```
